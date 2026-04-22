@@ -30,18 +30,18 @@ AUDIT_HISTORY: dict[str, dict] = {}
 
 
 # ── Health ───────────────────────────────────────────────────────────────────
-@app.get("/", tags=["Health"])
+@app.get("/api/", tags=["Health"])
 def root():
     return {"message": "FairSight API running 🚀", "status": "ok"}
 
 
-@app.get("/health", tags=["Health"])
+@app.get("/api/health", tags=["Health"])
 def health():
     return {"status": "ok"}
 
 
 # ── Column preview ───────────────────────────────────────────────────────────
-@app.post("/columns", tags=["Dataset"])
+@app.post("/api/columns", tags=["Dataset"])
 async def get_columns(file: UploadFile = File(...)):
     """
     Upload a CSV and get back its column names + first 3 rows preview.
@@ -61,7 +61,7 @@ async def get_columns(file: UploadFile = File(...)):
 
 
 # ── Audit ────────────────────────────────────────────────────────────────────
-@app.post("/audit", tags=["Audit"])
+@app.post("/api/audit", tags=["Audit"])
 async def audit(
     file: UploadFile = File(...),
     target_column: str = Form(...),
@@ -108,7 +108,7 @@ async def audit(
 
 
 # ── Report ────────────────────────────────────────────────────────────────────
-@app.get("/report/{audit_id}", tags=["Audit"])
+@app.get("/api/report/{audit_id}", tags=["Audit"])
 def report(audit_id: str):
     if audit_id not in AUDIT_HISTORY:
         raise HTTPException(status_code=404, detail="Audit not found")
@@ -116,7 +116,7 @@ def report(audit_id: str):
 
 
 # ── Explain (AI) ───────────────────────────────────────────────────────────
-@app.post("/explain/{audit_id}", tags=["AI"])
+@app.post("/api/explain/{audit_id}", tags=["AI"])
 def explain(audit_id: str):
     if audit_id not in AUDIT_HISTORY:
         raise HTTPException(status_code=404, detail="Audit not found")
@@ -131,7 +131,7 @@ def explain(audit_id: str):
 
 
 # ── Fix Suggestions (AI) ──────────────────────────────────────────────────
-@app.post("/fix/{audit_id}", tags=["AI"])
+@app.post("/api/fix/{audit_id}", tags=["AI"])
 def fix(audit_id: str):
     if audit_id not in AUDIT_HISTORY:
         raise HTTPException(status_code=404, detail="Audit not found")
@@ -153,7 +153,7 @@ def fix(audit_id: str):
 
 
 # ── History ───────────────────────────────────────────────────────────────
-@app.get("/history", tags=["History"])
+@app.get("/api/history", tags=["History"])
 def history():
     items = list(AUDIT_HISTORY.values())
     # Return newest first
@@ -164,7 +164,7 @@ def history():
     }
 
 
-@app.delete("/history/{audit_id}", tags=["History"])
+@app.delete("/api/history/{audit_id}", tags=["History"])
 def delete_audit(audit_id: str):
     if audit_id not in AUDIT_HISTORY:
         raise HTTPException(status_code=404, detail="Audit not found")
