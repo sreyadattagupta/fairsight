@@ -1,39 +1,82 @@
 import pandas as pd
+import numpy as np
 
-def compute_fairness_metrics(df, target_column, sensitive_column):
+
+def compute_fairness_metrics(df: pd.DataFrame, target_column: str, sensitive_column: str) -> dict:
     """
-    Computes:
-    - Demographic Parity
-    - Disparate Impact
+    Computes comprehensive fairness metrics:
+    - Demographic Parity (per group positive-outcome rates)
+    - Disparate Impact (min-rate / max-rate, 4/5ths rule)
+    - Max Parity Gap (max spread between any two groups)
+    - Per-group counts and probabilities
+    - Overall bias severity label
     """
 
-    groups = df[sensitive_column].unique()
+    if target_column not in df.columns:
+        return {"error": f"Target column '{target_column}' not found"}
+    if sensitive_column not in df.columns:
+        return {"error": f"Sensitive column '{sensitive_column}' not found"}
 
-    if len(groups) != 2:
-        return {"error": "Only binary sensitive attribute supported"}
+    # Coerce target to numeric (0/1)
+    df = df.copy()
+    df[target_column] = pd.to_numeric(df[target_column], errors="coerce")
+    df = df.dropna(subset=[target_column, sensitive_column])
+    df[target_column] = df[target_column].astype(int)
 
-    g1, g2 = groups[0], groups[1]
+    groups = df[sensitive_column].unique().tolist()
 
-    g1_df = df[df[sensitive_column] == g1]
-    g2_df = df[df[sensitive_column] == g2]
+    group_stats = {}
+    rates = []
 
-    # probability of positive outcome
-    p1 = g1_df[target_column].mean()
-    p2 = g2_df[target_column].mean()
+    for g in groups:
+        g_df = df[df[sensitive_column] == g]
+        count = len(g_df)
+        positive_count = int(g_df[target_column].sum())
+        rate = round(float(g_df[target_column].mean()), 4)
+        group_stats[str(g)] = {
+            "count": count,
+            "positive_count": positive_count,
+            "positive_rate": rate,
+        }
+        rates.append(rate)
 
-    demographic_parity = abs(p1 - p2)
+    # Disparate Impact: min / max (higher is more fair, 0.8 is threshold)
+    max_rate = max(rates) if rates else 1
+    min_rate = min(rates) if rates else 0
+    disparate_impact = round(min_rate / max_rate, 4) if max_rate > 0 else 0.0
 
-    # Avoid divide by zero
-    if p2 == 0:
-        disparate_impact = 0
+    # Demographic Parity Gap: max - min
+    demographic_parity_gap = round(max_rate - min_rate, 4)
+
+    # Overall bias severity
+    if disparate_impact < 0.6:
+        severity = "CRITICAL"
+    elif disparate_impact < 0.8:
+        severity = "HIGH"
+    elif disparate_impact < 0.9:
+        severity = "MEDIUM"
     else:
-        disparate_impact = p1 / p2
+        severity = "LOW"
 
-    return {
-        "group_1": str(g1),
-        "group_2": str(g2),
-        "p_group_1": round(p1, 3),
-        "p_group_2": round(p2, 3),
-        "demographic_parity": round(demographic_parity, 3),
-        "disparate_impact": round(disparate_impact, 3)
+    # Convenience fields for 2-group backward compat
+    g_keys = list(group_stats.keys())
+    result = {
+        "groups": g_keys,
+        "group_stats": group_stats,
+        "demographic_parity_gap": demographic_parity_gap,
+        "disparate_impact": disparate_impact,
+        "severity": severity,
+        "total_rows": len(df),
+        "target_column": target_column,
+        "sensitive_column": sensitive_column,
     }
+
+    # Legacy fields for 2-group usage
+    if len(g_keys) >= 2:
+        result["group_1"] = g_keys[0]
+        result["group_2"] = g_keys[1]
+        result["p_group_1"] = group_stats[g_keys[0]]["positive_rate"]
+        result["p_group_2"] = group_stats[g_keys[1]]["positive_rate"]
+        result["demographic_parity"] = demographic_parity_gap
+
+    return result

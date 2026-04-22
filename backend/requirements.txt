@@ -2,3 +2,7 @@ fastapi
 uvicorn
 pandas
 python-multipart
+google-generativeai
+python-dotenv
+numpy
+scikit-learn
